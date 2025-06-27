@@ -93,4 +93,7 @@ jspm_packages/
 
 # Cypress
 cypress/videos/
-cypress/screenshots/ 
+cypress/screenshots/
+
+# Eliza database
+.eliza/ 
