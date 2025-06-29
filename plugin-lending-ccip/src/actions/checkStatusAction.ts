@@ -3,34 +3,8 @@ import { ethers } from "ethers";
 import { BlockchainService } from "../utils/blockchain";
 
 export const checkStatusAction: Action = {
-    name: "CHECK_STATUS",
-    similes: [
-        "STATUS",
-        "CHECK_LOAN_STATUS",
-        "LOAN_STATUS",
-        "CHECK_DEBT",
-        "DEBT_STATUS",
-        "BALANCE_CHECK",
-        "상태", "상태확인", "대출상태", "잔액확인"
-    ],
-    description: "Sepolia와 Base Sepolia 네트워크에서 현재 대출 상태와 담보 정보를 확인합니다",
-    examples: [
-        [
-            {
-                name: "user",
-                content: {
-                    text: "상태 확인해줘"
-                }
-            },
-            {
-                name: "assistant",
-                content: {
-                    text: "Sepolia와 Base Sepolia 네트워크에서 현재 상태를 확인하겠습니다.",
-                    action: "CHECK_STATUS"
-                }
-            }
-        ]
-    ],
+    name: "check-status",
+    description: "사용자의 현재 대출 상태와 담보 정보를 확인합니다.",
     validate: async (_runtime: IAgentRuntime, message: Memory) => {
         const text = message.content?.text?.toLowerCase();
         if (!text) return false;

@@ -1,24 +1,23 @@
 import { Plugin } from "@elizaos/core";
 import { depositCollateralAction } from './actions/depositCollateralAction.ts';
 import { requestLoanAction } from './actions/requestLoanAction.ts';
-import { confirmSignatureAction } from './actions/confirmSignatureAction.ts';
 import { checkStatusAction } from './actions/checkStatusAction.ts';
+import { confirmSignatureAction } from './actions/confirmSignatureAction.ts';
 import { repayLoanAction } from './actions/repayLoanAction.ts';
 import { withdrawCollateralAction } from './actions/withdrawCollateralAction.ts';
 
 export const lendingPlugin: Plugin = {
     name: "lending-ccip",
-    description: "크로스체인 담보 대출 시스템 - ETH 담보로 KKCoin 대출",
+    description: "A plugin for handling cross-chain lending via Chainlink CCIP.",
     actions: [
-        depositCollateralAction,
         requestLoanAction,
         confirmSignatureAction,
         checkStatusAction,
+        depositCollateralAction,
         repayLoanAction,
         withdrawCollateralAction
     ],
-    evaluators: [],
-    providers: []
+    routes: [],
 };
 
 // 개별 액션들도 export

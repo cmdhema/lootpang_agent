@@ -2,6 +2,9 @@ import { logger, type IAgentRuntime, type Project, type ProjectAgent } from '@el
 import starterPlugin from './plugin.ts';
 import { character } from './character.ts';
 
+// Import lending plugin from built version
+import lendingPlugin from '../plugin-lending-ccip/dist/index.js';
+
 const initCharacter = ({ runtime }: { runtime: IAgentRuntime }) => {
   logger.info('Initializing character');
   logger.info('Name: ', character.name);
@@ -10,7 +13,7 @@ const initCharacter = ({ runtime }: { runtime: IAgentRuntime }) => {
 export const projectAgent: ProjectAgent = {
   character,
   init: async (runtime: IAgentRuntime) => await initCharacter({ runtime }),
-  // plugins: [starterPlugin], <-- Import custom plugins here
+  plugins: [starterPlugin, lendingPlugin], // Import custom plugins here
 };
 const project: Project = {
   agents: [projectAgent],

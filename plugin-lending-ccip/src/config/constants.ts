@@ -1,17 +1,17 @@
 import { config } from 'dotenv';
 config();
 
-export const ETHEREUM_SEPOLIA_RPC = process.env.ETHEREUM_SEPOLIA_RPC_URL || "";
-export const BASE_SEPOLIA_RPC = process.env.BASE_SEPOLIA_RPC_URL || "";
-export const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
+export const ETHEREUM_SEPOLIA_RPC = process.env.SEPOLIA_RPC_URL || "";
+export const BASE_SEPOLIA_RPC = process.env.BASESEPOLIA_RPC_URL || "";
+export const PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.TEST_USER_PRIVATE_KEY || "";
 
 // Sepolia Network (Source)
-export const VAULT_SENDER_ADDRESS = process.env.VAULT_SENDER_ADDRESS || "";
-export const SEPOLIA_VAULT_ADDRESS = process.env.SEPOLIA_VAULT_ADDRESS || "";
+export const VAULT_SENDER_ADDRESS = process.env.SEPOLIA_VAULT_SENDER_CONTRACT || "";
+export const SEPOLIA_VAULT_ADDRESS = process.env.SEPOLIA_VAULT_CONTRACT || "";
 
 // Base Sepolia Network (Destination)
-export const BASE_VAULT_ADDRESS = process.env.BASE_VAULT_ADDRESS || "";
-export const VAULT_RECEIVER_ADDRESS = process.env.VAULT_ADDRESS || ""; // Legacy
+export const BASE_VAULT_ADDRESS = process.env.BASESEPOLIA_VAULT_CONTRACT || "";
+export const VAULT_RECEIVER_ADDRESS = process.env.BASESEPOLIA_VAULT_RECEIVER_CONTRACT || "";
 
 // Chain Selectors for CCIP
 export const BASE_SEPOLIA_CHAIN_SELECTOR = process.env.BASE_SEPOLIA_CHAIN_SELECTOR || "10344971235874465080";

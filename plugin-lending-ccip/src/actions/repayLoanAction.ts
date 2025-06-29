@@ -3,29 +3,8 @@ import { ethers } from "ethers";
 import { BlockchainService } from "../utils/blockchain";
 
 export const repayLoanAction: Action = {
-    name: "REPAY_LOAN",
-    similes: [
-        "상환", "갚기", "대출상환", "빚갚기",
-        "상환해줘", "갚아줘", "대출갚기", "리페이"
-    ],
-    description: "Base Sepolia 네트워크에서 KKCoin 대출을 상환합니다",
-    examples: [
-        [
-            {
-                name: "user",
-                content: {
-                    text: "100 KKCoin 상환해줘"
-                }
-            },
-            {
-                name: "assistant",
-                content: {
-                    text: "Base Sepolia 네트워크에서 100 KKCoin을 상환하겠습니다.",
-                    action: "REPAY_LOAN"
-                }
-            }
-        ]
-    ],
+    name: "repay-loan",
+    description: "사용자의 KKCoin을 사용하여 대출을 상환합니다.",
     validate: async (_runtime: IAgentRuntime, message: Memory) => {
         const text = message.content?.text?.toLowerCase();
         if (!text) return false;
@@ -113,7 +92,7 @@ export const repayLoanAction: Action = {
 
             // Execute loan repayment on Base Sepolia
             console.log("[DEBUG] Executing loan repayment on Base Sepolia...");
-            const tx = await baseVault.repayLoan(repayAmountWei);
+            const tx = await baseVault.repay(repayAmountWei);
 
             console.log("[DEBUG] Transaction sent:", tx.hash);
             console.log("[DEBUG] Waiting for transaction confirmation...");

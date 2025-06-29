@@ -3,29 +3,8 @@ import { ethers } from "ethers";
 import { BlockchainService } from "../utils/blockchain";
 
 export const depositCollateralAction: Action = {
-    name: "DEPOSIT_COLLATERAL",
-    similes: [
-        "예치", "담보넣기", "ETH예치", "담보예치",
-        "이더예치", "담보로넣기", "예치해줘", "담보넣어줘"
-    ],
-    description: "ETH를 Sepolia 네트워크의 Vault에 담보로 예치합니다",
-    examples: [
-        [
-            {
-                name: "user",
-                content: {
-                    text: "1 ETH 예치해줘"
-                }
-            },
-            {
-                name: "assistant",
-                content: {
-                    text: "Sepolia 네트워크에 1 ETH를 담보로 예치하겠습니다.",
-                    action: "DEPOSIT_COLLATERAL"
-                }
-            }
-        ]
-    ],
+    name: "deposit-collateral",
+    description: "사용자의 지갑에서 Vault 컨트랙트로 ETH를 담보로 예치합니다.",
     validate: async (_runtime: IAgentRuntime, message: Memory) => {
         const text = message.content?.text?.toLowerCase();
         if (!text) return false;

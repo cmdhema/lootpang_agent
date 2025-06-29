@@ -1,171 +1,163 @@
-import { Action, HandlerCallback, IAgentRuntime, Memory, State } from "@elizaos/core";
+import { Action, Content, HandlerCallback, IAgentRuntime, Memory, State } from "@elizaos/core";
 import { ethers } from "ethers";
 import { BlockchainService } from "../utils/blockchain";
 
 export const requestLoanAction: Action = {
-    name: "REQUEST_LOAN",
-    similes: [
-        "대출", "빌리기", "KKCoin빌리기", "대출신청",
-        "케이케이코인빌리기", "빌려줘", "대출해줘", "론",
-        "BORROW", "LOAN_REQUEST", "GET_LOAN", "REQUEST_LENDING", "BORROW_MONEY", "TAKE_LOAN"
-    ],
-    description: "KKCoin 대출을 요청합니다 (서명 필요)",
-    examples: [
-        [
-            {
-                name: "user",
-                content: {
-                    text: "100 KKCoin 빌려줘"
-                }
-            },
-            {
-                name: "assistant",
-                content: {
-                    text: "대출 요청을 처리하겠습니다. 보안을 위해 서명이 필요합니다.",
-                    action: "REQUEST_LOAN"
-                }
-            }
-        ]
-    ],
+    name: "request-loan",
+    description: "KKCoin 대출을 요청하고 서명에 필요한 데이터를 생성합니다.",
     validate: async (_runtime: IAgentRuntime, message: Memory) => {
         const text = message.content?.text?.toLowerCase();
-        if (!text) return false;
-        
-        const borrowKeywords = ['대출', '빌리기', '빌려줘', '대출해줘', 'borrow', 'loan', 'lend', 'lending', 'kkcoin', 'kkc'];
-        const amountPattern = /(\d+(?:\.\d+)?)\s*(?:kkc|kkcoin|케이케이코인)/i;
-        
-        return borrowKeywords.some(keyword => text.includes(keyword)) && amountPattern.test(text);
+        if (!text) {
+            return false;
+        }
+        return (text.includes('borrow') || text.includes('빌려줘') || text.includes('대출')) && 
+               text.includes('kkcoin') && 
+               /\d+/.test(text);
     },
     handler: async (
         _runtime: IAgentRuntime,
         message: Memory,
         _state?: State,
         _options?: any,
-        callback?: HandlerCallback
+        callback?: HandlerCallback,
+        _responses?: Memory[]
     ) => {
+        console.log("[DEBUG] ========== REQUEST_LOAN HANDLER START (SIMPLE CALLBACK) ==========");
+        const ETH_TO_KKC_RATE = 10000;
+        const COLLATERAL_RATIO = 1.5;
+        
         try {
-            console.log("[DEBUG] REQUEST_LOAN handler started");
-            console.log("[DEBUG] Message content:", message.content?.text);
-
-            // Extract amount from message
             const text = message.content?.text;
             if (!text) {
-                throw new Error("No message text found");
+                throw new Error("No message text found.");
             }
             
-            const amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:kkc|kkcoin|케이케이코인)/i);
-            
+            const amountMatch = text.match(/(\d+(?:\.\d+)?)/);
             if (!amountMatch) {
-                throw new Error("Could not extract loan amount from message");
+                throw new Error("Loan amount not found in the message.");
             }
 
             const kkcAmount = parseFloat(amountMatch[1]);
-            console.log("[DEBUG] Extracted KKC amount:", kkcAmount);
+            const kkcAmountInWei = ethers.parseUnits(kkcAmount.toString(), 18);
 
-            // Initialize blockchain service
             const blockchainService = new BlockchainService();
             const userAddress = blockchainService.getWalletAddress();
-            console.log("[DEBUG] User address:", userAddress);
 
-            // Get contracts from both networks
-            console.log("[DEBUG] Getting vault contracts from both networks...");
-            const sepoliaVault = blockchainService.getSepoliaVaultContractReadOnly(); // For collateral info
-            const baseVault = blockchainService.getBaseVaultContractReadOnly(); // For nonce and debt
+            const sepoliaVault = blockchainService.getSepoliaVaultContractReadOnly();
+            const baseVault = blockchainService.getBaseVaultContractReadOnly();
 
-            // Check user's current status from both networks
-            console.log("[DEBUG] Checking user collateral (Sepolia) and loan status (Base)...");
-            const [userCollateral, maxLoanAmount] = await Promise.all([
-                sepoliaVault.getCollateral(userAddress),      // Sepolia: 담보 정보
-                sepoliaVault.getMaxLoanAmount(userAddress)    // Sepolia: 최대 대출 가능 금액
-            ]);
-
-            const [userDebt, userNonce] = await Promise.all([
-                baseVault.getDebt(userAddress),               // Base: 현재 대출
-                baseVault.nonces(userAddress)                 // Base: EIP-712 nonce
-            ]);
-
-            console.log("[DEBUG] User status:");
-            console.log("  - Collateral (Sepolia):", ethers.formatEther(userCollateral), "ETH");
-            console.log("  - Current debt (Base):", ethers.formatUnits(userDebt, 18), "KKCoin");
-            console.log("  - Max loan amount (Sepolia):", ethers.formatUnits(maxLoanAmount, 18), "KKCoin");
-            console.log("  - Nonce (Base):", userNonce.toString());
-
-            // Check if user has sufficient collateral
-            const maxLoanAmountFormatted = parseFloat(ethers.formatUnits(maxLoanAmount, 18));
+            const userCollateralInWei = await sepoliaVault.getCollateral(userAddress);
+            const userDebtInWei = await baseVault.getDebt(userAddress);
             
-            if (maxLoanAmountFormatted < kkcAmount) {
-                const currentCollateralEth = ethers.formatEther(userCollateral);
-                const additionalNeeded = ((kkcAmount - maxLoanAmountFormatted) * 1.5).toFixed(4); // Assuming 150% collateral ratio
+            const userCollateralInEth = parseFloat(ethers.formatUnits(userCollateralInWei, 18));
+            
+            const userCollateralInKkcValue = userCollateralInWei * BigInt(ETH_TO_KKC_RATE);
+            const totalDebtInWei = userDebtInWei + kkcAmountInWei;
+            const totalRequiredCollateralInKkcValue = (totalDebtInWei * BigInt(Math.floor(COLLATERAL_RATIO * 100))) / BigInt(100);
+
+            if (userCollateralInKkcValue < totalRequiredCollateralInKkcValue) {
+                const deficitInKkcValue = totalRequiredCollateralInKkcValue - userCollateralInKkcValue;
+                const additionalNeededInWei = deficitInKkcValue / BigInt(ETH_TO_KKC_RATE);
+                const additionalNeededInEth = parseFloat(ethers.formatUnits(additionalNeededInWei, 18));
                 
+                const maxLoanableKkcInWei = (userCollateralInKkcValue * BigInt(100) / BigInt(Math.floor(COLLATERAL_RATIO * 100))) - userDebtInWei;
+                const maxLoanAmountInKkc = parseFloat(ethers.formatUnits(maxLoanableKkcInWei > 0n ? maxLoanableKkcInWei : 0n, 18));
+
                 if (callback) {
                     callback({
+                        roomId: message.roomId,
                         text: `❌ **담보가 부족합니다!**\n\n` +
                               `🎯 **대출 요청**: ${kkcAmount} KKCoin\n` +
-                              `💰 **현재 담보**: ${currentCollateralEth} ETH\n` +
-                              `🔄 **최대 대출 가능**: ${maxLoanAmountFormatted} KKCoin\n` +
-                              `⚠️ **추가 필요**: 약 ${additionalNeeded} ETH\n\n` +
-                              `💡 먼저 "${additionalNeeded} ETH 예치해줘"라고 말해주세요!`,
-                        action: "INSUFFICIENT_COLLATERAL"
+                              `💰 **현재 담보**: ${userCollateralInEth.toFixed(4)} ETH\n` +
+                              `🔄 **최대 대출 가능**: ${maxLoanAmountInKkc.toFixed(4)} KKCoin\n` +
+                              `⚠️ **추가 필요**: 약 ${additionalNeededInEth.toFixed(4)} ETH\n\n` +
+                              `💡 "${additionalNeededInEth.toFixed(4)} ETH 예치해줘"라고 말해주세요!`,
                     });
                 }
-                return false;
+                console.log("[DEBUG] Insufficient collateral - returning");
+                return;
             }
 
-            // Generate signature data
-            const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-            const nonce = Number(userNonce);
-            
-            const signatureData = {
+            const userNonce = await baseVault.nonces(userAddress);
+            const deadline = Math.floor(Date.now() / 1000) + 3600; 
+
+            const baseVaultAddress = await baseVault.getAddress();
+            const chainId = await blockchainService.getBaseChainId();
+            const domain = {
+                name: 'VaultSender',
+                version: '1',
+                chainId: chainId.toString(),
+                verifyingContract: baseVaultAddress,
+            };
+    
+            const types = {
+                BorrowPermit: [
+                    { name: "user", type: "address" },
+                    { name: "amount", type: "uint256" },
+                    { name: "nonce", type: "uint256" },
+                    { name: "deadline", type: "uint256" }
+                ]
+            };
+    
+            const value = {
                 user: userAddress,
-                amount: kkcAmount,
-                nonce: nonce,
-                deadline: deadline
+                amount: kkcAmountInWei,
+                nonce: userNonce,
+                deadline: deadline,
             };
 
-            console.log("[DEBUG] Signature data generated:");
-            console.log("  - User:", signatureData.user);
-            console.log("  - Amount:", signatureData.amount);
-            console.log("  - Nonce:", signatureData.nonce);
-            console.log("  - Deadline:", new Date(signatureData.deadline * 1000).toLocaleString());
+            const serializableValue = {
+                user: value.user,
+                amount: value.amount.toString(),
+                nonce: value.nonce.toString(),
+                deadline: value.deadline
+            };
+            const signatureData = { domain, types, value: serializableValue };
+
+            const responseText = `🔐 **대출 승인을 위해 서명이 필요합니다**\n\n` +
+                               `💳 **대출 금액**: ${kkcAmount} KKCoin\n` +
+                               `💰 **현재 담보**: ${userCollateralInEth.toFixed(4)} ETH\n\n` +
+                               `✅ **지갑에서 서명을 진행해주세요.**`;
+
+            const contentWithSignature = `${responseText}\n\n<!-- SIGNATURE_DATA:${JSON.stringify(signatureData)} -->`;
+
+            // ElizaOS 표준 callback 사용 (Content 형식)
+            const responseContent: Content = {
+                text: contentWithSignature,
+                actions: ["AWAITING_SIGNATURE"],
+                source: message.content?.source || "direct",
+                metadata: {
+                    signatureData: signatureData,
+                    amount: kkcAmount,
+                    collateral: userCollateralInEth.toFixed(4)
+                }
+            };
 
             if (callback) {
-                callback({
-                    text: `🔐 **대출 승인을 위해 서명이 필요합니다**\n\n` +
-                          `💳 **대출 금액**: ${kkcAmount} KKCoin\n` +
-                          `📝 **서명 데이터**:\n` +
-                          `• 사용자: ${userAddress}\n` +
-                          `• 금액: ${kkcAmount} KKCoin\n` +
-                          `• Nonce: ${nonce}\n` +
-                          `• 만료시간: ${new Date(deadline * 1000).toLocaleString()}\n\n` +
-                          `✅ **지갑에서 서명 후 "서명 완료 [서명값]"라고 말해주세요**\n\n` +
-                          `⚠️ 서명은 1시간 후 만료됩니다.`,
-                    action: "AWAITING_SIGNATURE",
-                    metadata: { 
-                        signatureData,
-                        loanAmount: kkcAmount,
-                        userAddress,
-                        nonce,
-                        deadline
-                    }
-                });
+                console.log("[DEBUG] Calling callback with proper Content format");
+                await callback(responseContent);
             }
-
+            
+            console.log("[DEBUG] ========== REQUEST_LOAN HANDLER SUCCESS ==========");
             return true;
 
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log("[DEBUG] Request loan error:", errorMessage);
-            console.log("[DEBUG] Error stack:", error instanceof Error ? error.stack : 'No stack trace available');
+            console.error("[ERROR] request-loan handler failed:", error);
             
+            const errorContent: Content = {
+                text: `❌ **대출 요청 실패**: ${errorMessage}`,
+                actions: ["REQUEST_LOAN_FAILED"],
+                source: message.content?.source || "direct"
+            };
+
             if (callback) {
-                callback({
-                    text: `❌ **대출 요청 실패**\n\n` +
-                          `🚫 **오류**: ${errorMessage}\n\n` +
-                          `💡 네트워크 상태를 확인하고 다시 시도해주세요.`,
-                    action: "LOAN_REQUEST_FAILED"
-                });
+                console.log("[DEBUG] Calling callback with error content");
+                await callback(errorContent);
             }
+            
+            console.log("[DEBUG] ========== REQUEST_LOAN HANDLER FAILED ==========");
             return false;
         }
     }
-}; 
+};

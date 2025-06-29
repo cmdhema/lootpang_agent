@@ -12,13 +12,26 @@ export class BlockchainService {
     private baseSepoliaWallet: ethers.Wallet;
 
     constructor() {
+        // Validate private key
+        if (!PRIVATE_KEY || PRIVATE_KEY.length < 64) {
+            console.warn("[BLOCKCHAIN] Warning: PRIVATE_KEY not set or invalid. Using dummy key for testing.");
+            console.warn("[BLOCKCHAIN] Please set PRIVATE_KEY environment variable for actual blockchain operations.");
+        }
+        
+        // Use dummy private key if not set (for testing/development)
+        const privateKey = PRIVATE_KEY && PRIVATE_KEY.length >= 64 
+            ? PRIVATE_KEY 
+            : "0x0000000000000000000000000000000000000000000000000000000000000001";
+        
         // Initialize Sepolia
         this.sepoliaProvider = new ethers.JsonRpcProvider(ETHEREUM_SEPOLIA_RPC);
-        this.sepoliaWallet = new ethers.Wallet(PRIVATE_KEY, this.sepoliaProvider);
+        this.sepoliaWallet = new ethers.Wallet(privateKey, this.sepoliaProvider);
         
         // Initialize Base Sepolia
         this.baseSepoliaProvider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC);
-        this.baseSepoliaWallet = new ethers.Wallet(PRIVATE_KEY, this.baseSepoliaProvider);
+        this.baseSepoliaWallet = new ethers.Wallet(privateKey, this.baseSepoliaProvider);
+        
+        console.log("[BLOCKCHAIN] Initialized with wallet address:", this.sepoliaWallet.address);
     }
 
     // Get Sepolia provider and wallet
@@ -51,22 +64,34 @@ export class BlockchainService {
 
     // Ethereum Sepolia에서 Vault 컨트랙트 가져오기 (담보 관리용)
     getSepoliaVaultContract() {
-        return new ethers.Contract(process.env.SEPOLIA_VAULT_ADDRESS || "", VAULT_ABI, this.sepoliaWallet);
+        return new ethers.Contract(process.env.SEPOLIA_VAULT_CONTRACT || "", VAULT_ABI, this.sepoliaWallet);
     }
 
     // Base Sepolia에서 Vault 컨트랙트 가져오기 (대출 실행용)
     getBaseVaultContract() {
-        return new ethers.Contract(process.env.BASE_VAULT_ADDRESS || "", VAULT_ABI, this.baseSepoliaWallet);
+        return new ethers.Contract(process.env.BASESEPOLIA_VAULT_CONTRACT || "", VAULT_ABI, this.baseSepoliaWallet);
     }
 
     // 읽기 전용 Sepolia Vault 컨트랙트 (담보 관리용 - 가스비 없음)
     getSepoliaVaultContractReadOnly() {
-        return new ethers.Contract(process.env.SEPOLIA_VAULT_ADDRESS || "", VAULT_ABI, this.sepoliaProvider);
+        return new ethers.Contract(process.env.SEPOLIA_VAULT_CONTRACT || "", VAULT_ABI, this.sepoliaProvider);
     }
 
     // 읽기 전용 Base Vault 컨트랙트 (대출 실행용 - 가스비 없음)
     getBaseVaultContractReadOnly() {
-        return new ethers.Contract(process.env.BASE_VAULT_ADDRESS || "", VAULT_ABI, this.baseSepoliaProvider);
+        return new ethers.Contract(process.env.BASESEPOLIA_VAULT_CONTRACT || "", VAULT_ABI, this.baseSepoliaProvider);
+    }
+
+    // Base Sepolia 체인 ID 가져오기
+    async getBaseChainId(): Promise<bigint> {
+        const network = await this.baseSepoliaProvider.getNetwork();
+        return network.chainId;
+    }
+
+    // Sepolia 체인 ID 가져오기
+    async getSepoliaChainId(): Promise<bigint> {
+        const network = await this.sepoliaProvider.getNetwork();
+        return network.chainId;
     }
 
     // Get Vault Receiver contract (on Base Sepolia) - Legacy method
